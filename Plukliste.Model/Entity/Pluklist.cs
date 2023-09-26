@@ -1,4 +1,4 @@
-﻿namespace Plukliste;
+namespace Plukliste.Model.Entity;
 public class Pluklist
 {
 
@@ -8,19 +8,3 @@ public class Pluklist
     public List<Item> Lines = new List<Item>();
     public void AddItem(Item item) { Lines.Add(item); }
 }
-
-public class Item
-{
-    public string ProductID;
-    public string Title;
-    public ItemType Type;
-    public int Amount;
-}
-
-public enum ItemType
-{
-    Fysisk, Print
-}
-
-
-

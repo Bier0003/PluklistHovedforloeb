@@ -1,4 +1,11 @@
-﻿using System.Text;
+﻿using System.Runtime.InteropServices;
+using System.Text;
+using System.Xml.Schema;
+using Plukliste.Model;
+using Plukliste.Model.Entity;
+using Plukliste.Model.Filehandler;
+using Plukliste.Model.Interface;
+using Plukliste.Model.ManualPrinter;
 
 namespace Plukliste;
 
@@ -9,7 +16,8 @@ class PluklisteProgram {
         //Arrange
         char readKey = ' ';
         List<string> files;
-        //List<string> templateFiles;
+        var fileHandlers = new List<IFileHandler>() { new XMLFileHandler(), new CSVFileHandler() };
+        var manualPrinters = new List<IManualPrinter>() { new PluklisteManualPrinter() };
         var index = -1;
         var standardColor = Console.ForegroundColor;
         Directory.CreateDirectory("import");
@@ -21,7 +29,8 @@ class PluklisteProgram {
         //ACT
         while (readKey != 'Q')
         {
-            Pluklist plukliste = null;
+            object currentDeserializedFileObject = null;
+
             if (files.Count == 0)
             {
                 Console.WriteLine("No files found.");
@@ -30,30 +39,18 @@ class PluklisteProgram {
             else
             {
                 if (index == -1) index = 0;
+                var fileExtension = Path.GetExtension(files[index]); //Get the fileextension
+                var fileName = Path.GetFileNameWithoutExtension(files[index]); //Get the filename
+                var fileHandler = fileHandlers.SingleOrDefault(iFileHandler => iFileHandler.CanHandle(fileExtension)) ?? throw new FileLoadException($"File: {files[index]} cannot be handled as it is not supported."); //Find the handler that can handle the file type
 
-                Console.WriteLine($"Plukliste {index + 1} af {files.Count}");
+                Console.WriteLine($"{fileHandler.PrintType()} {index + 1} af {files.Count}");
                 Console.WriteLine($"\nfile: {files[index]}");
 
                 //read file
                 using(FileStream file = File.OpenRead(files[index])) 
                 {
-                    System.Xml.Serialization.XmlSerializer xmlSerializer =
-                        new System.Xml.Serialization.XmlSerializer(typeof(Pluklist));
-                    plukliste = (Pluklist?)xmlSerializer.Deserialize(file);
-
-                    //print plukliste
-                    if (plukliste != null && plukliste.Lines != null)
-                    {
-                        Console.WriteLine($"\n{"Name:",-13}{plukliste.Name}");
-                        Console.WriteLine($"{"Forsendelse:",-13}{plukliste.Forsendelse}");
-                        Console.WriteLine($"{"Addresse:",-13}{plukliste.Adresse}");
-
-                        Console.WriteLine(GetPluklisteHeadline());
-                        foreach (var item in plukliste.Lines)
-                        {
-                            Console.WriteLine(GetPluklisteLine(item));
-                        }
-                    }
+                    fileHandler.PrintContent(file, fileName);
+                    currentDeserializedFileObject = fileHandler.GetDeserializedObject();
                 }
             }
 
@@ -63,36 +60,43 @@ class PluklisteProgram {
 
             if (index >= 0)
             {
-                PrintOption("A", "fslut plukseddel", standardColor);
+                PrintOption("A", "fslut fil", standardColor);
             }
             if (index > 0)
             {
-                PrintOption("F", "orrige plukseddel", standardColor);
+                PrintOption("F", "orrige fil", standardColor);
             }
             if (index < files.Count - 1)
             {
-                PrintOption("N", "æste plukseddel", standardColor);
+                PrintOption("N", "æste fil", standardColor);
             }
 
-            PrintOption("G", "enindlæs pluksedler", standardColor);
+            PrintOption("G", "enindlæs filer", standardColor);
 
-            PrintOption("O", "pgraderingsvejledning udskrift", standardColor);
+            if(currentDeserializedFileObject is Pluklist) //TODO: print options based on type in a seperate class
+            {
 
-            PrintOption("U", "psigelsesvejledning udskrift", standardColor);
+                PrintOption("O", "pgraderingsvejledning udskrift", standardColor);
 
-            PrintOption("V", "elkomst udskrift", standardColor);
+                PrintOption("U", "psigelsesvejledning udskrift", standardColor);
+
+                PrintOption("V", "elkomst udskrift", standardColor);
+            }
 
             readKey = Console.ReadKey().KeyChar;
-            if (readKey >= 'a') readKey -= (char)('a' - 'A'); //HACK: To upper
+            if (readKey >= 'a') readKey -= (char)('a' - 'A');
             Console.Clear();
 
-            Console.ForegroundColor = ConsoleColor.Red; //status in red
-            switch (readKey)
+            Console.ForegroundColor = ConsoleColor.Red;
+
+            var manualPrinterForObject = manualPrinters.SingleOrDefault(p => p.CanPrint(currentDeserializedFileObject));
+
+            switch (readKey) //TODO: optons to be based on type in a seperate class instead
             {
                 case 'G':
                     files = Directory.EnumerateFiles("export").ToList();
                     index = -1;
-                    Console.WriteLine("Pluklister genindlæst");
+                    Console.WriteLine("Filer genindlæst");
                     break;
                 case 'F':
                     if (index > 0) index--;
@@ -104,56 +108,29 @@ class PluklisteProgram {
                     //Move files to import directory
                     var filewithoutPath = files[index].Substring(files[index].LastIndexOf('\\'));
                     File.Move(files[index], string.Format(@"import\\{0}", filewithoutPath));
-                    Console.WriteLine($"Plukseddel {files[index]} afsluttet.");
+                    Console.WriteLine($"Fil {files[index]} afsluttet.");
                     files.Remove(files[index]);
                     if (index == files.Count) index--;
                     break;
                 case 'O': //Opgradeingsvejledning
-                    PrintManual("OPGRADE", plukliste, true);
+                    if(currentDeserializedFileObject is null) break;
+                    manualPrinterForObject.PrintManual("OPGRADE", currentDeserializedFileObject, true);
                     Console.WriteLine("Opgraderingsvejledning sendt til print!");
                     break;
                 case 'U': //Opsigelsesvejledning
-                    PrintManual("OPSIGELSE", plukliste, false);
+                    if(currentDeserializedFileObject is null) break;
+                    manualPrinterForObject.PrintManual("OPSIGELSE", currentDeserializedFileObject, false);
                     Console.WriteLine("Opsigelsesvejledning sendt til print!");
                     break;
                 case 'V': //Velkomst vejledning
-                    PrintManual("WELCOME", plukliste, true);
+                    if(currentDeserializedFileObject is null) break;
+                    manualPrinterForObject.PrintManual("WELCOME", currentDeserializedFileObject, true);
                     Console.WriteLine("Velkomst sendt til print!");
                     break;
             }
             Console.ForegroundColor = standardColor; //reset color
 
         }
-    }
-
-    private static string GetPluklisteLine(Item item)
-    {
-        return $"{item.Amount,-7}{item.Type,-9}{item.ProductID,-20}{item.Title}";
-    }
-
-
-    private static string GetPluklisteHeadline()
-    {
-        return $"\n{"Antal",-7}{"Type",-9}{"Produktnr.",-20}{"Navn"}";
-    }
-
-
-    public static void PrintManual(string type, Pluklist plukliste, bool printPlukliste)
-    {
-        var content = File.ReadAllText("templates/PRINT-" + type + ".html");
-        content = content.Replace("[Adresse]", plukliste.Adresse);
-        content = content.Replace("[Name]", plukliste.Name);
-        if(printPlukliste)
-        {
-            var sb = new StringBuilder();
-            sb.Append("<pre>");
-            sb.AppendLine(GetPluklisteHeadline());
-            foreach(var item in plukliste.Lines)
-                sb.AppendLine(GetPluklisteLine(item));
-            sb.Append("</pre>");
-            content = content.Replace("[Plukliste]", sb.ToString());
-        }
-        File.WriteAllText("print/" + Guid.NewGuid().ToString() + ".html", content);
     }
 
     public static void PrintOption(string optionLetter, string followupText, ConsoleColor foregroundColor)
