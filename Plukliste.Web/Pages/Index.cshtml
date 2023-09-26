@@ -1,0 +1,41 @@
+﻿@page
+@model IndexViewModel
+@{
+    ViewData["Title"] = "Home page";
+    var items = Model.GetAllItems();
+}
+
+<div class="text-center">
+    <h1 class="display-4">Pluklist Item Database</h1>
+    <p>Here you can see the items currently in stock, and maintain the stock amount.</p>
+</div>
+
+@if(items.Any()) {
+
+<form method="post">
+    <h1>Available items: </h1>
+    <table class="table">
+        <tr>
+            <th>Product ID</th>
+            <th>Title</th>
+            <th>Type</th>
+            <th>Amount</th>
+        </tr>
+        @foreach(var item in items) {
+        <tr>
+            <td>@item.ProductID</td>
+            <td>@item.Title</td>
+            <td>@item.ItemType</td>
+            <td>
+                <input type="hidden" name="items.Index" value="@item.Id" />
+                <input type="hidden" name="items[@item.Id].Id" value="@item.Id" />
+                <input name="items[@item.Id].Amount" value="@item.Amount" />
+            </td>
+        </tr>
+        }
+    </table>
+    <button type="submit">Opdater</button>
+</form>
+} else {
+    <h1>No available items</h1>
+}

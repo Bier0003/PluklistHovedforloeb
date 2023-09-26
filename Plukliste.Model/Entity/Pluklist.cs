@@ -1,7 +1,8 @@
 namespace Plukliste.Model.Entity;
+
 public class Pluklist
 {
-
+    public int Id;
     public string? Name;
     public string? Forsendelse;
     public string? Adresse;
