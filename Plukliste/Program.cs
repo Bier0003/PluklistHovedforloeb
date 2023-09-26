@@ -1,8 +1,4 @@
-﻿using System.Runtime.InteropServices;
-using System.Text;
-using System.Xml.Schema;
-using Plukliste.Model;
-using Plukliste.Model.Entity;
+﻿using Plukliste.Model.Entity;
 using Plukliste.Model.Filehandler;
 using Plukliste.Model.Interface;
 using Plukliste.Model.ManualPrinter;
@@ -24,7 +20,6 @@ class PluklisteProgram {
         Directory.CreateDirectory("print");
                 
         files = readFilesFromDirectory("export");
-        //templateFiles = readFilesFromDirectory("templates");
 
         //ACT
         while (readKey != 'Q')
